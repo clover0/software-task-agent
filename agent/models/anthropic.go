@@ -8,8 +8,10 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github/clover0/github-issue-agent/logger"
+	"github/clover0/github-issue-agent/util"
 )
 
 type AnthropicClient struct {
@@ -76,32 +78,42 @@ type AnthropicMessageService struct {
 }
 
 func (s *AnthropicMessageService) Create(ctx context.Context, body J) (*ResponseMessage, error) {
-	req, err := s.client.NewRequest("POST", "v1/messages", body)
+	var message *ResponseMessage
+	err := util.Retry(3, func() error {
+		req, err := s.client.NewRequest("POST", "v1/messages", body)
+		if err != nil {
+			return fmt.Errorf("failed to create request: %w", err)
+		}
+
+		resp, err := s.client.client.Do(req)
+		if err != nil {
+			return fmt.Errorf("failed to send request: %w", err)
+		}
+		defer resp.Body.Close()
+
+		b, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("failed to read response body: %w", err)
+		}
+
+		if resp.StatusCode >= 400 {
+			s := string(b)
+			if resp.StatusCode == http.StatusServiceUnavailable || strings.Contains(s, "overloaded") {
+				return util.RetryableError
+			}
+			return fmt.Errorf("invalid request or server error %s", b)
+		}
+
+		if err := json.Unmarshal(b, &message); err != nil {
+			return fmt.Errorf("failed to unmarshal response body: %w", err)
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, err
 	}
 
-	resp, err := s.client.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	var message ResponseMessage
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("invalid request or server error %s", b)
-	}
-
-	if err := json.Unmarshal(b, &message); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response body: %w", err)
-	}
-
-	return &message, nil
+	return message, nil
 }
 
 type ResponseMessage struct {
