@@ -1,0 +1,21 @@
+name: Release Binary
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  build:
+    name: Build and Release
+    uses: slsa-framework/slsa-github-generator/.github/workflows/builder_go_slsa3.yml@v1.9.0
+    with:
+      go-version: '1.21'
+      architecture: 'linux/amd64,linux/arm64'
+      binary-name: 'runner'
+      working-directory: 'cmd/runner'
