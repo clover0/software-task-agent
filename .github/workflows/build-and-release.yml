@@ -1,0 +1,54 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        go-version: [1.23.x]
+        platform: [amd64, arm64]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: ${{ matrix.go-version }}
+
+    - name: Build
+      run: |
+        GOOS=linux GOARCH=${{ matrix.platform }} go build -o myapp-agent ./agent/cmd/runner
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: myapp-agent-${{ matrix.platform }}
+        path: myapp-agent
+
+    - name: Generate SLSA provenance
+      uses: slsa-framework/slsa-github-generator@v1.3.0
+      with:
+        builder: 'https://github.com/slsa-framework/slsa-github-generator'
+
+    - name: Verify SLSA provenance
+      uses: slsa-framework/slsa-verifier@v1.3.0
+      with:
+        provenance: provenance.json
+
+    - name: Publish to GitHub Packages
+      uses: actions/upload-release-asset@v1
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./myapp-agent
+        asset_name: myapp-agent-${{ matrix.platform }}
+        asset_content_type: application/octet-stream

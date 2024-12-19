@@ -48,3 +48,9 @@ docker compose run --rm \
   - Git clone at /usr/local/repositories
   - LLM OPENAI_API_KEY or ANTHROPIC_API_KEY is required
 1. Human review of work product by agent
+
+## GitHub Actions Workflow
+
+This repository includes a GitHub Actions workflow to build and release the `agent/cmd/runner/main.go` project. The workflow is triggered on pushes to the `main` branch and on release creation. It builds the project for both AMD and ARM architectures, generates SLSA provenance, and uploads the binaries to GitHub Packages.
+
+To set up the workflow, ensure that the `.github/workflows/build-and-release.yml` file is present in the repository.
